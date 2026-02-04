@@ -129,7 +129,7 @@ async function handleFallback(
   // Try each fallback model in sequence
   for (const fallbackModel of fallbackList) {
     try {
-      req.log.info(`Trying fallback model: ${fallbackModel}`);
+      req.log.debug(`Trying fallback model: ${fallbackModel}`);
 
       // Update request with fallback model
       const newBody = { ...(req.body as any) };
@@ -179,7 +179,7 @@ async function handleFallback(
         { req: newReq }
       );
 
-      req.log.info(`Fallback model ${fallbackModel} succeeded`);
+      req.log.debug(`Fallback model ${fallbackModel} succeeded`);
 
       // Format and return response
       return formatResponse(finalResponse, reply, newBody);
@@ -673,9 +673,8 @@ export const registerApiRoutes = async (
         throw createApiError("Provider not found", 404, "provider_not_found");
       }
       return {
-        message: `Provider ${
-          request.body.enabled ? "enabled" : "disabled"
-        } successfully`,
+        message: `Provider ${request.body.enabled ? "enabled" : "disabled"
+          } successfully`,
       };
     }
   );

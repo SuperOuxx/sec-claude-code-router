@@ -24,7 +24,7 @@ try {
 
   // Build the server application
   console.log('Building server application...');
-  // 使用 minify 和 tree-shaking 优化体积
+  // Use minify and tree-shaking for production optimization
   execSync('esbuild src/index.ts --bundle --platform=node --minify --tree-shaking=true --outfile=dist/index.js', {
     stdio: 'inherit',
     cwd: serverDir

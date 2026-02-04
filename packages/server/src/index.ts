@@ -17,6 +17,16 @@ import agentsManager from "./agents";
 import { EventEmitter } from "node:events";
 import { pluginManager, tokenSpeedPlugin } from "@musistudio/llms";
 
+// Import tokenization module
+import {
+  TokenizationService,
+  MemoryStorage,
+  SensitiveDetector,
+  DEFAULT_RULES,
+  getEnabledRules,
+  type TokenizationConfig,
+} from "./tokenization";
+
 const event = new EventEmitter()
 
 async function initializeClaudeConfig() {
@@ -63,27 +73,27 @@ async function registerPluginsFromConfig(serverInstance: any, config: any): Prom
   const pluginsConfig: PluginConfig[] = config.plugins || config.Plugins || [];
 
   for (const pluginConfig of pluginsConfig) {
-      const { name, enabled = false, options = {} } = pluginConfig;
+    const { name, enabled = false, options = {} } = pluginConfig;
 
-      switch (name) {
-        case 'token-speed':
-          pluginManager.registerPlugin(tokenSpeedPlugin, {
-            enabled,
-            outputHandlers: [
-              {
-                type: 'temp-file',
-                enabled: true
-              }
-            ],
-            ...options
-          });
-          break;
+    switch (name) {
+      case 'token-speed':
+        pluginManager.registerPlugin(tokenSpeedPlugin, {
+          enabled,
+          outputHandlers: [
+            {
+              type: 'temp-file',
+              enabled: true
+            }
+          ],
+          ...options
+        });
+        break;
 
-        default:
-          console.warn(`Unknown plugin: ${name}`);
-          break;
-      }
+      default:
+        console.warn(`Unknown plugin: ${name}`);
+        break;
     }
+  }
   // Enable all registered plugins
   await pluginManager.enablePlugins(serverInstance);
 }
@@ -183,11 +193,40 @@ async function getServer(options: RunOptions = {}) {
   });
 
   await Promise.allSettled(
-      presets.map(async preset => await serverInstance.registerNamespace(`/preset/${preset.name}`, preset.config))
+    presets.map(async preset => await serverInstance.registerNamespace(`/preset/${preset.name}`, preset.config))
   )
 
   // Register and configure plugins from config
   await registerPluginsFromConfig(serverInstance, config);
+
+  // Initialize tokenization service
+  let tokenizationService: TokenizationService | null = null;
+  if (config.enableTokenization !== false) {
+    const tokenConfig: TokenizationConfig = config.tokenization || {};
+
+    const storage = new MemoryStorage({
+      max: tokenConfig.maxTokens || 10000,
+      ttl: tokenConfig.ttl || 3600 * 1000, // Default 1 hour
+    });
+
+    const rules = getEnabledRules(
+      tokenConfig.customRules,
+      tokenConfig.disabledRules
+    );
+
+    const detector = new SensitiveDetector(rules);
+    tokenizationService = new TokenizationService(
+      storage,
+      detector,
+      serverInstance.app.log
+    );
+
+    serverInstance.app.log.info({
+      enabledRules: rules.map(r => r.name),
+      storageType: 'memory',
+      maxTokens: tokenConfig.maxTokens || 10000,
+    }, 'Tokenization service initialized');
+  }
 
   // Add async preHandler hook for authentication
   serverInstance.addHook("preHandler", async (req: any, reply: any) => {
@@ -200,6 +239,7 @@ async function getServer(options: RunOptions = {}) {
       apiKeyAuth(config)(req, reply, done).catch(reject);
     });
   });
+
   serverInstance.addHook("preHandler", async (req: any, reply: any) => {
     const url = new URL(`http://127.0.0.1${req.url}`);
     req.pathname = url.pathname;
@@ -207,6 +247,38 @@ async function getServer(options: RunOptions = {}) {
       req.preset = req.pathname.replace("/v1/messages", "").replace("/", "");
     }
   })
+
+  // Input Guard: Tokenize incoming requests
+  if (tokenizationService) {
+    serverInstance.addHook("preHandler", async (req: any, reply: any) => {
+      if (req.pathname?.endsWith("/v1/messages") && req.body) {
+        try {
+          const originalBody = JSON.stringify(req.body);
+
+          // Track active tokens for this request to enable fuzzy detokenization later
+          const activeTokens = new Set<string>();
+          (req as any).activeTokens = activeTokens;
+
+          req.body = await tokenizationService!.tokenizeRequest(req.body, {
+            sessionId: req.sessionId,
+            requestId: req.id,
+          }, activeTokens);
+
+          if (activeTokens.size > 0) {
+            req.log.debug({ tokens: Array.from(activeTokens) }, 'Active tokens tracked for request');
+          }
+
+          const tokenizedBody = JSON.stringify(req.body);
+          if (originalBody !== tokenizedBody) {
+            req.log.debug('Request body tokenized');
+          }
+        } catch (error: any) {
+          req.log.error(`Tokenization failed: ${error.message}`, error.stack);
+          // Continue with original request on error (graceful degradation)
+        }
+      }
+    });
+  }
 
   serverInstance.addHook("preHandler", async (req: any, reply: any) => {
     if (req.pathname.endsWith("/v1/messages")) {
@@ -241,9 +313,11 @@ async function getServer(options: RunOptions = {}) {
       }
     }
   });
+
   serverInstance.addHook("onError", async (request: any, reply: any, error: any) => {
     event.emit('onError', request, reply, error);
   })
+
   serverInstance.addHook("onSend", (req: any, reply: any, payload: any, done: any) => {
     if (req.sessionId && req.pathname.endsWith("/v1/messages")) {
       if (payload instanceof ReadableStream) {
@@ -332,7 +406,7 @@ async function getServer(options: RunOptions = {}) {
                 const reader = stream.getReader()
                 while (true) {
                   try {
-                    const {value, done} = await reader.read();
+                    const { value, done } = await reader.read();
                     if (done) {
                       break;
                     }
@@ -347,7 +421,7 @@ async function getServer(options: RunOptions = {}) {
                     }
 
                     controller.enqueue(eventData)
-                  }catch (readError: any) {
+                  } catch (readError: any) {
                     if (readError.name === 'AbortError' || readError.code === 'ERR_STREAM_PREMATURE_CLOSE') {
                       abortController.abort(); // Abort all related operations
                       break;
@@ -359,7 +433,7 @@ async function getServer(options: RunOptions = {}) {
                 return undefined
               }
               return data
-            }catch (error: any) {
+            } catch (error: any) {
               console.error('Unexpected error in stream processing:', error);
 
               // Handle premature stream closure error
@@ -390,7 +464,7 @@ async function getServer(options: RunOptions = {}) {
               try {
                 const message = JSON.parse(str);
                 sessionUsageCache.put(req.sessionId, message.usage);
-              } catch {}
+              } catch { }
             }
           } catch (readError: any) {
             if (readError.name === 'AbortError' || readError.code === 'ERR_STREAM_PREMATURE_CLOSE') {
@@ -406,7 +480,7 @@ async function getServer(options: RunOptions = {}) {
         return done(null, originalStream)
       }
       sessionUsageCache.put(req.sessionId, payload.usage);
-      if (typeof payload ==='object') {
+      if (typeof payload === 'object') {
         if (payload.error) {
           return done(payload.error, null)
         } else {
@@ -414,11 +488,73 @@ async function getServer(options: RunOptions = {}) {
         }
       }
     }
-    if (typeof payload ==='object' && payload.error) {
+    if (typeof payload === 'object' && payload.error) {
       return done(payload.error, null)
     }
     done(null, payload)
   });
+
+  // Output Guard: Detokenize outgoing responses
+  if (tokenizationService) {
+    serverInstance.addHook("onSend", async (req: any, reply: any, payload: any) => {
+      if (!req.pathname?.endsWith("/v1/messages")) {
+        return payload;
+      }
+
+      try {
+        // Handle streaming response
+        if (payload instanceof ReadableStream) {
+          const eventStream = payload.pipeThrough(new SSEParserTransform());
+
+          return rewriteStream(eventStream, async (data: any) => {
+            // Detokenize event data with fuzzy matching support using active tokens
+            if (data.data) {
+              data.data = await tokenizationService!.detokenizeResponse(data.data, (req as any).activeTokens);
+            }
+            return data;
+          }).pipeThrough(new SSESerializerTransform());
+        }
+
+        // Handle non-streaming response with fuzzy matching support
+        // Payload might be a JSON string, need to parse it first
+        let responseObj = payload;
+        let wasString = false;
+
+        if (typeof payload === 'string') {
+          try {
+            responseObj = JSON.parse(payload);
+            wasString = true;
+          } catch (e) {
+            req.log.warn('Failed to parse payload as JSON, skipping detokenization');
+            return payload;
+          }
+        }
+
+        if (typeof responseObj === 'object' && responseObj !== null) {
+          const actives = (req as any).activeTokens as Set<string> | undefined;
+          req.log.debug({
+            hasActiveTokens: !!actives?.size,
+            activeCount: actives?.size
+          }, 'Attempting detokenization');
+
+          const detokenized = await tokenizationService!.detokenizeResponse(responseObj, actives);
+          req.log.debug('Response detokenized');
+
+          // If we parsed it, we need to stringify it back
+          if (wasString) {
+            return JSON.stringify(detokenized);
+          }
+          return detokenized;
+        }
+      } catch (error: any) {
+        req.log.error(`Detokenization failed: ${error.message}`, error.stack);
+        // Return original payload on error (graceful degradation)
+      }
+
+      return payload;
+    });
+  }
+
   serverInstance.addHook("onSend", async (req: any, reply: any, payload: any) => {
     event.emit('onSend', req, reply, payload);
     return payload;

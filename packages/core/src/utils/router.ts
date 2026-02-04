@@ -109,13 +109,13 @@ const getProjectSpecificRouter = async (
         if (sessionConfig && sessionConfig.Router) {
           return sessionConfig.Router;
         }
-      } catch {}
+      } catch { }
       try {
         const projectConfig = JSON.parse(await readFile(projectConfigPath, "utf8"));
         if (projectConfig && projectConfig.Router) {
           return projectConfig.Router;
         }
-      } catch {}
+      } catch { }
     }
   }
   return undefined; // Return undefined to use original configuration
@@ -153,7 +153,7 @@ const getUseModel = async (
     tokenCount > 20000;
   const tokenCountThreshold = tokenCount > longContextThreshold;
   if ((lastUsageThreshold || tokenCountThreshold) && Router?.longContext) {
-    req.log.info(
+    req.log.debug(
       `Using long context model due to token count: ${tokenCount}, threshold: ${longContextThreshold}`
     );
     return { model: Router.longContext, scenarioType: 'longContext' };
@@ -180,7 +180,7 @@ const getUseModel = async (
     req.body.model?.includes("haiku") &&
     globalRouter?.background
   ) {
-    req.log.info(`Using background model for ${req.body.model}`);
+    req.log.debug(`Using background model for ${req.body.model}`);
     return { model: globalRouter.background, scenarioType: 'background' };
   }
   // The priority of websearch must be higher than thinking.
@@ -193,7 +193,7 @@ const getUseModel = async (
   }
   // if exits thinking, use the think model
   if (req.body.thinking && Router?.think) {
-    req.log.info(`Using think model for ${req.body.thinking}`);
+    req.log.debug(`Using think model for ${req.body.thinking}`);
     return { model: Router.think, scenarioType: 'think' };
   }
   return { model: Router?.default, scenarioType: 'default' };
