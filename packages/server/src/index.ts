@@ -503,8 +503,18 @@ async function getServer(options: RunOptions = {}) {
 
       try {
         // Handle streaming response
-        if (payload instanceof ReadableStream) {
-          const eventStream = payload.pipeThrough(new SSEParserTransform());
+        if (payload && (payload instanceof ReadableStream || (payload as any).pipe || typeof (payload as any).on === 'function')) {
+          let readable: ReadableStream;
+
+          if (payload instanceof ReadableStream) {
+            readable = payload;
+          } else {
+            return payload;
+          }
+
+          const eventStream = readable
+            .pipeThrough(new TextDecoderStream())
+            .pipeThrough(new SSEParserTransform());
 
           return rewriteStream(eventStream, async (data: any) => {
             // Detokenize event data with fuzzy matching support using active tokens
@@ -512,7 +522,9 @@ async function getServer(options: RunOptions = {}) {
               data.data = await tokenizationService!.detokenizeResponse(data.data, (req as any).activeTokens);
             }
             return data;
-          }).pipeThrough(new SSESerializerTransform());
+          })
+            .pipeThrough(new SSESerializerTransform())
+            .pipeThrough(new TextEncoderStream());
         }
 
         // Handle non-streaming response with fuzzy matching support

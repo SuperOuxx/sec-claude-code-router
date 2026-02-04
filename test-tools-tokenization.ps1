@@ -1,4 +1,5 @@
 # 简化的工具调用测试脚本 V3
+# 支持流式输出测试
 
 $uri = "http://127.0.0.1:3456/v1/messages"
 
@@ -32,61 +33,76 @@ $json = '
 }
 '
 
-Write-Host "Sending request..." -ForegroundColor Yellow
-
 try {
-    $response = Invoke-RestMethod -Uri $uri -Method POST -Body $json -ContentType "application/json"
+    Write-Host "Sending request..." -ForegroundColor Yellow
     
-    Write-Host "Response received." -ForegroundColor Green
+    # Load assembly
+    Add-Type -AssemblyName System.Net.Http
     
-    $content = $response.content
-    $toolUse = $null
+    # Use HttpClient
+    $httpClient = New-Object System.Net.Http.HttpClient
+    $content = New-Object System.Net.Http.StringContent($json, [System.Text.Encoding]::UTF8, "application/json")
+    $responseTask = $httpClient.PostAsync($uri, $content)
+    $response = $responseTask.Result
     
-    # 查找 tool_use
-    if ($content) {
-        foreach ($item in $content) {
-            if ($item.type -eq "tool_use") {
-                $toolUse = $item
-                break
-            }
-        }
-    }
+    Write-Host "Response status: $($response.StatusCode)" -ForegroundColor Green
     
-    if ($toolUse) {
-        Write-Host "TOOL USE FOUND: $($toolUse.name)" -ForegroundColor Cyan
-        $args = $toolUse.input
-        Write-Host "ARGUMENTS:"
-        Write-Host ($args | ConvertTo-Json)
+    $rawResponse = $response.Content.ReadAsStringAsync().Result
+    
+    if ($json -match '"stream":\s*true') {
+        Write-Host "Streaming response detected. Raw output fragment:" -ForegroundColor Gray
+        Write-Host ($rawResponse.Substring(0, [Math]::Min(1000, $rawResponse.Length)))
         
-        $id = $args.id
-        $phone = $args.phone
+        # Simple check for values in raw text
+        $idPass = $rawResponse -match "310101199001011234"
+        $phonePass = $rawResponse -match "13800138000"
         
-        # 验证 ID
-        if ($id -eq "310101199001011234") {
-            Write-Host "[PASS] ID restored correctly: $id" -ForegroundColor Green
-        }
-        elseif ($id -match "ID_") {
-            Write-Host "[FAIL] ID is still tokenized: $id" -ForegroundColor Red
-        }
-        else {
-            Write-Host "[WARN] ID mismatch: $id" -ForegroundColor Yellow
+        if ($idPass) {
+            Write-Host "[PASS] ID restored correctly in stream!" -ForegroundColor Green
+        } else {
+            Write-Host "[FAIL] ID not found or still tokenized in stream." -ForegroundColor Red
         }
         
-        # 验证 Phone
-        if ($phone -eq "13800138000") {
-            Write-Host "[PASS] Phone restored correctly: $phone" -ForegroundColor Green
+        if ($phonePass) {
+            Write-Host "[PASS] Phone restored correctly in stream!" -ForegroundColor Green
+        } else {
+            Write-Host "[FAIL] Phone not found or still tokenized in stream." -ForegroundColor Red
         }
-        elseif ($phone -match "MOBILE_") {
-            Write-Host "[FAIL] Phone is still tokenized: $phone" -ForegroundColor Red
-        }
-        else {
-            Write-Host "[WARN] Phone mismatch: $phone" -ForegroundColor Yellow
-        }
-        
     }
     else {
-        Write-Host "NO TOOL USE FOUND in response." -ForegroundColor Red
-        Write-Host ($response | ConvertTo-Json -Depth 5)
+        $responseObj = $rawResponse | ConvertFrom-Json
+        $toolUse = $null
+        
+        if ($responseObj.content) {
+            foreach ($item in $responseObj.content) {
+                if ($item.type -eq "tool_use") {
+                    $toolUse = $item
+                    break
+                }
+            }
+        }
+        
+        if ($toolUse) {
+            Write-Host "TOOL USE FOUND: $($toolUse.name)" -ForegroundColor Cyan
+            $args = $toolUse.input
+            Write-Host "ARGUMENTS:"
+            Write-Host ($args | ConvertTo-Json)
+            
+            if ($args.id -eq "310101199001011234") {
+                Write-Host "[PASS] ID restored correctly: $($args.id)" -ForegroundColor Green
+            } else {
+                Write-Host "[FAIL] ID mismatch: $($args.id)" -ForegroundColor Red
+            }
+            
+            if ($args.phone -eq "13800138000") {
+                Write-Host "[PASS] Phone restored correctly: $($args.phone)" -ForegroundColor Green
+            } else {
+                Write-Host "[FAIL] Phone mismatch: $($args.phone)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "NO TOOL USE FOUND in response." -ForegroundColor Red
+            Write-Host $rawResponse
+        }
     }
 
 }
