@@ -183,11 +183,7 @@ async function getServer(options: RunOptions = {}) {
       providers: config.Providers || config.providers,
       HOST: HOST,
       PORT: servicePort,
-      LOG_FILE: join(
-        homedir(),
-        ".claude-code-router",
-        "claude-code-router.log"
-      ),
+      LOG_FILE: join(HOME_DIR, "claude-code-router.log"),
     },
     logger: loggerConfig,
   });

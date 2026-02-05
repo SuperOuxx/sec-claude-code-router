@@ -17,6 +17,7 @@ const YELLOW = "\x1B[33m";
 const BOLDCYAN = "\x1B[1m\x1B[36m";
 const BOLDYELLOW = "\x1B[1m\x1B[33m";
 const DIM = "\x1B[2m";
+const CLI_NAME = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
 
 /**
  * List local presets
@@ -28,7 +29,7 @@ async function listPresets(): Promise<void> {
     await fs.access(presetsDir);
   } catch {
     console.log('\nNo presets directory found.');
-    console.log(`\nCreate your first preset with: ${GREEN}ccr preset export <name>${RESET}\n`);
+    console.log(`\nCreate your first preset with: ${GREEN}${CLI_NAME} preset export <name>${RESET}\n`);
     return;
   }
 
@@ -37,7 +38,7 @@ async function listPresets(): Promise<void> {
 
   if (presetDirs.length === 0) {
     console.log('\nNo presets found.');
-    console.log(`\nInstall a preset with: ${GREEN}ccr preset install <file>${RESET}\n`);
+    console.log(`\nInstall a preset with: ${GREEN}${CLI_NAME} preset install <file>${RESET}\n`);
     return;
   }
 
@@ -175,7 +176,7 @@ export async function handlePresetCommand(args: string[]): Promise<void> {
       const presetName = args[1];
       if (!presetName) {
         console.error('\nError: Preset name is required\n');
-        console.error('Usage: ccr preset export <name> [--output <path>] [--description <text>] [--author <name>] [--tags <tags>]\n');
+        console.error(`Usage: ${CLI_NAME} preset export <name> [--output <path>] [--description <text>] [--author <name>] [--tags <tags>]\n`);
         process.exit(1);
       }
 
@@ -202,7 +203,7 @@ export async function handlePresetCommand(args: string[]): Promise<void> {
       const source = args[1];
       if (!source) {
         console.error('\nError: Preset source is required\n');
-        console.error('Usage: ccr preset install <file | url | name>\n');
+        console.error(`Usage: ${CLI_NAME} preset install <file | url | name>\n`);
         process.exit(1);
       }
 
@@ -219,7 +220,7 @@ export async function handlePresetCommand(args: string[]): Promise<void> {
       const deleteName = args[1];
       if (!deleteName) {
         console.error('\nError: Preset name is required\n');
-        console.error('Usage: ccr preset delete <name>\n');
+        console.error(`Usage: ${CLI_NAME} preset delete <name>\n`);
         process.exit(1);
       }
       await deletePreset(deleteName);
@@ -229,7 +230,7 @@ export async function handlePresetCommand(args: string[]): Promise<void> {
       const infoName = args[1];
       if (!infoName) {
         console.error('\nError: Preset name is required\n');
-        console.error('Usage: ccr preset info <name>\n');
+        console.error(`Usage: ${CLI_NAME} preset info <name>\n`);
         process.exit(1);
       }
       await showPresetInfo(infoName);
@@ -238,11 +239,11 @@ export async function handlePresetCommand(args: string[]): Promise<void> {
     default:
       console.error(`\nError: Unknown preset command "${subCommand}"\n`);
       console.error('Available commands:');
-      console.error('  ccr preset export <name>      Export current configuration as a preset');
-      console.error('  ccr preset install <source>   Install a preset from file, URL, or registry');
-      console.error('  ccr preset list              List installed presets');
-      console.error('  ccr preset info <name>        Show preset information');
-      console.error('  ccr preset delete <name>      Delete a preset\n');
+      console.error(`  ${CLI_NAME} preset export <name>      Export current configuration as a preset`);
+      console.error(`  ${CLI_NAME} preset install <source>   Install a preset from file, URL, or registry`);
+      console.error(`  ${CLI_NAME} preset list              List installed presets`);
+      console.error(`  ${CLI_NAME} preset info <name>        Show preset information`);
+      console.error(`  ${CLI_NAME} preset delete <name>      Delete a preset\n`);
       process.exit(1);
   }
 }

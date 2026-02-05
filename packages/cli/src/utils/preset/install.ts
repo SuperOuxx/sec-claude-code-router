@@ -31,6 +31,7 @@ const YELLOW = "\x1B[33m";
 const BOLDYELLOW = "\x1B[1m\x1B[33m";
 const BOLDCYAN = "\x1B[1m\x1B[36m";
 const DIM = "\x1B[2m";
+const CLI_NAME = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
 
 /**
  * Apply preset to configuration
@@ -151,7 +152,7 @@ export async function applyPresetCli(
       console.log(`${BOLDCYAN}Keywords:${RESET} ${keywords.join(', ')}`);
     }
 
-    console.log(`\n${GREEN}Use this preset:${RESET} ccr ${presetName} "your prompt"`);
+    console.log(`\n${GREEN}Use this preset:${RESET} ${CLI_NAME} ${presetName} "your prompt"`);
     console.log(`${DIM}Note: Configuration is stored in the manifest file${RESET}\n`);
 
   } catch (error: any) {
@@ -198,7 +199,7 @@ export async function installPresetCli(
 
       // Check if preset with this name already exists BEFORE installing
       if (await isPresetInstalled(presetName)) {
-        throw new Error(`Preset '${presetName}' is already installed. To reconfigure, use: ccr preset install ${presetName}\nTo delete and reinstall, use: ccr preset delete ${presetName}`);
+        throw new Error(`Preset '${presetName}' is already installed. To reconfigure, use: ${CLI_NAME} preset install ${presetName}\nTo delete and reinstall, use: ${CLI_NAME} preset delete ${presetName}`);
       }
     } else {
       // Preset name (without path)

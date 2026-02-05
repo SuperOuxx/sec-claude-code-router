@@ -47,10 +47,11 @@ export async function executeCodeCommand(
   const statusLineConfig = presetConfig?.StatusLine || config?.StatusLine;
 
   if (statusLineConfig?.enabled) {
+    const cliName = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
     // If using preset, pass preset name to statusline command
     const statuslineCommand = presetName
-      ? `ccr statusline ${presetName}`
-      : "ccr statusline";
+      ? `${cliName} statusline ${presetName}`
+      : `${cliName} statusline`;
 
     settingsFlag.statusLine = {
       type: "command",

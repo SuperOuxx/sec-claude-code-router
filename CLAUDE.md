@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Claude Code Router is a tool that routes Claude Code requests to different LLM providers. It uses a Monorepo architecture with four main packages:
 
-- **cli** (`@musistudio/claude-code-router`): Command-line tool providing the `ccr` command
+- **cli** (`@musistudio/claude-code-router`): Command-line tool providing the `sec-ccr` command
 - **server** (`@CCR/server`): Core server handling API routing and transformations
 - **shared** (`@CCR/shared`): Shared constants, utilities, and preset management
 - **ui** (`@CCR/ui`): Web management interface (React + Vite)
@@ -93,13 +93,13 @@ The server uses custom Transform streams to handle Server-Sent Events:
 
 ### 5. Configuration Management
 
-Configuration file location: `~/.claude-code-router/config.json`
+Configuration file location: `~/.sec-claude-code-router/config.json` (override with `SEC_CCR_HOME_DIR`)
 
 Key features:
 - Supports environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`)
 - JSON5 format (supports comments)
 - Automatic backups (keeps last 3 backups)
-- Hot reload requires service restart (`ccr restart`)
+- Hot reload requires service restart (`sec-ccr restart`)
 
 Configuration validation:
 - If `Providers` are configured, both `HOST` and `APIKEY` must be set
@@ -110,37 +110,37 @@ Configuration validation:
 Two separate logging systems:
 
 **Server-level logs** (pino):
-- Location: `~/.claude-code-router/logs/ccr-*.log`
+- Location: `~/.sec-claude-code-router/logs/ccr-*.log`
 - Content: HTTP requests, API calls, server events
 - Configuration: `LOG_LEVEL` (fatal/error/warn/info/debug/trace)
 
 **Application-level logs**:
-- Location: `~/.claude-code-router/claude-code-router.log`
+- Location: `~/.sec-claude-code-router/claude-code-router.log`
 - Content: Routing decisions, business logic events
 
 ## CLI Commands
 
 ```bash
-ccr start      # Start server
-ccr stop       # Stop server
-ccr restart    # Restart server
-ccr status     # Show status
-ccr code       # Execute claude command
-ccr model      # Interactive model selection and configuration
-ccr preset     # Manage presets (export, install, list, info, delete)
-ccr activate   # Output shell environment variables (for integration)
-ccr ui         # Open Web UI
-ccr statusline # Integrated statusline (reads JSON from stdin)
+sec-ccr start      # Start server
+sec-ccr stop       # Stop server
+sec-ccr restart    # Restart server
+sec-ccr status     # Show status
+sec-ccr code       # Execute claude command
+sec-ccr model      # Interactive model selection and configuration
+sec-ccr preset     # Manage presets (export, install, list, info, delete)
+sec-ccr activate   # Output shell environment variables (for integration)
+sec-ccr ui         # Open Web UI
+sec-ccr statusline # Integrated statusline (reads JSON from stdin)
 ```
 
 ### Preset Commands
 
 ```bash
-ccr preset export <name>      # Export current configuration as a preset
-ccr preset install <source>   # Install a preset from file, URL, or name
-ccr preset list               # List all installed presets
-ccr preset info <name>        # Show preset information
-ccr preset delete <name>      # Delete a preset
+sec-ccr preset export <name>      # Export current configuration as a preset
+sec-ccr preset install <source>   # Install a preset from file, URL, or name
+sec-ccr preset list               # List all installed presets
+sec-ccr preset info <name>        # Show preset information
+sec-ccr preset delete <name>      # Delete a preset
 ```
 
 ## Subagent Routing
@@ -157,7 +157,7 @@ The preset system allows users to save, share, and reuse configurations easily.
 
 ### Preset Structure
 
-Presets are stored in `~/.claude-code-router/presets/<preset-name>/manifest.json`
+Presets are stored in `~/.sec-claude-code-router/presets/<preset-name>/manifest.json`
 
 Each preset contains:
 - **Metadata**: name, version, description, author, keywords, etc.
@@ -218,7 +218,7 @@ The CLI layer (`packages/cli/src/utils/preset/`) handles:
 - Display formatting
 
 Key files:
-- `commands.ts`: Command handlers for `ccr preset` subcommands
+- `commands.ts`: Command handlers for `sec-ccr preset` subcommands
 - `export.ts`: CLI wrapper for export functionality
 - `install.ts`: CLI wrapper for install functionality
 

@@ -1,7 +1,7 @@
 import { join } from "path";
-import { homedir } from "os";
 import { existsSync, mkdirSync } from "fs";
 import { promises as fs } from "fs";
+import { HOME_DIR } from "@CCR/shared";
 import {
   ITokenizer,
   TokenizeRequest,
@@ -34,7 +34,7 @@ export class HuggingFaceTokenizer implements ITokenizer {
     this.modelId = modelId;
     this.logger = logger;
     this.options = options;
-    this.cacheDir = options.cacheDir || join(homedir(), ".claude-code-router", ".huggingface");
+    this.cacheDir = options.cacheDir || join(HOME_DIR, ".huggingface");
     // Cache safe model name to avoid repeated regex operations
     this.safeModelName = modelId.replace(/\//g, "_").replace(/[^a-zA-Z0-9_-]/g, "_");
     this.name = `huggingface-${modelId.split("/").pop()}`;

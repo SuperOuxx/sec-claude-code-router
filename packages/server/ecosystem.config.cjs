@@ -12,8 +12,8 @@ module.exports = {
         NODE_ENV: 'production',
       },
       // 日志配置
-      error_file: '/root/.claude-code-router/logs/error.log',
-      out_file: '/root/.claude-code-router/logs/out.log',
+      error_file: '/root/.sec-claude-code-router/logs/error.log',
+      out_file: '/root/.sec-claude-code-router/logs/out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       // 启用日志时间戳

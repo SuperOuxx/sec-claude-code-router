@@ -6,6 +6,7 @@ import {
   CONFIG_FILE,
   DEFAULT_CONFIG,
   HOME_DIR,
+  LEGACY_HOME_DIR,
   PLUGINS_DIR,
 } from "@CCR/shared";
 
@@ -81,8 +82,22 @@ export const readConfigFile = async () => {
     }
   } catch (readError: any) {
     if (readError.code === "ENOENT") {
-      // Config file doesn't exist, prompt user for initial setup
       try {
+        // If this is a fresh sec-ccr install, migrate legacy ccr config once.
+        const legacyConfigPath = path.join(LEGACY_HOME_DIR, "config.json");
+        const hasLegacyConfig = await fs
+          .access(legacyConfigPath)
+          .then(() => true)
+          .catch(() => false);
+
+        if (hasLegacyConfig) {
+          await initDir();
+          await fs.copyFile(legacyConfigPath, CONFIG_FILE);
+          console.log(`Migrated legacy config: ${legacyConfigPath} -> ${CONFIG_FILE}`);
+          const migrated = await fs.readFile(CONFIG_FILE, "utf-8");
+          return interpolateEnvVars(JSON5.parse(migrated));
+        }
+
         // Initialize directories
         await initDir();
 
@@ -94,14 +109,14 @@ export const readConfigFile = async () => {
           );
         }
         const config = {
-          PORT: 3456,
+          PORT: 3457,
           Providers: [],
           Router: {},
         }
         // Create a minimal default config file
         await writeConfigFile(config);
         console.log(
-            "Created minimal default configuration file at ~/.claude-code-router/config.json"
+            `Created minimal default configuration file at ${CONFIG_FILE}`
         );
         console.log(
             "Please edit this file with your actual configuration."

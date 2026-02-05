@@ -12,13 +12,14 @@ import { activateCommand } from "./utils/activateCommand";
 import { readConfigFile } from "./utils";
 import { version } from "../package.json";
 import { spawn, exec } from "child_process";
-import {getPresetDir, loadConfigFromManifest, PID_FILE, readPresetFile, REFERENCE_COUNT_FILE} from "@CCR/shared";
+import {CONFIG_FILE, DEFAULT_HOME_DIRNAME, getPresetDir, loadConfigFromManifest, PID_FILE, readPresetFile, REFERENCE_COUNT_FILE} from "@CCR/shared";
 import fs, { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { parseStatusLineData, StatusLineInput } from "./utils/statusline";
 import {handlePresetCommand} from "./utils/preset";
 import { handleInstallCommand } from "./utils/installCommand";
 
+const CLI_NAME = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
 
 const command = process.argv[2];
 
@@ -43,7 +44,7 @@ const KNOWN_COMMANDS = [
 ];
 
 const HELP_TEXT = `
-Usage: ccr [command] [preset-name]
+Usage: ${CLI_NAME} [command] [preset-name]
 
 Commands:
   start         Start server
@@ -61,24 +62,24 @@ Commands:
   -h, help      Show help information
 
 Presets:
-  Any preset directory in ~/.claude-code-router/presets/
+  Any preset directory in ~/${DEFAULT_HOME_DIRNAME}/presets/
 
 Examples:
-  ccr start
-  ccr code "Write a Hello World"
-  ccr my-preset "Write a Hello World"    # Use preset configuration
-  ccr model
-  ccr preset export my-config            # Export current config as preset
-  ccr preset install /path/to/preset     # Install a preset from directory
-  ccr preset list                        # List all presets
-  ccr install my-preset                  # Install preset from marketplace
-  eval "$(ccr activate)"  # Set environment variables globally
-  ccr ui
+  ${CLI_NAME} start
+  ${CLI_NAME} code "Write a Hello World"
+  ${CLI_NAME} my-preset "Write a Hello World"    # Use preset configuration
+  ${CLI_NAME} model
+  ${CLI_NAME} preset export my-config            # Export current config as preset
+  ${CLI_NAME} preset install /path/to/preset     # Install a preset from directory
+  ${CLI_NAME} preset list                        # List all presets
+  ${CLI_NAME} install my-preset                  # Install preset from marketplace
+  eval "$(${CLI_NAME} activate)"  # Set environment variables globally
+  ${CLI_NAME} ui
 `;
 
 async function waitForService(
-  timeout = 10000,
-  initialDelay = 1000
+  timeout = 30000,
+  initialDelay = 1500
 ): Promise<boolean> {
   // Wait for an initial period to let the service initialize
   await new Promise((resolve) => setTimeout(resolve, initialDelay));
@@ -188,14 +189,14 @@ async function main() {
           executeCodeCommand(codeArgs, presetConfig, envOverrides, command);
         } else {
           console.error(
-            "Service startup timeout, please manually run `ccr start` to start the service"
+            `Service startup timeout, please manually run \`${CLI_NAME} start\` to start the service`
           );
           process.exit(1);
         }
       } else {
         // Service is already running or no need to start server
         if (shouldStartServer && !isRunning) {
-          console.error("Service is not running. Please start it first with `ccr start`");
+          console.error(`Service is not running. Please start it first with \`${CLI_NAME} start\``);
           process.exit(1);
         }
         executeCodeCommand(codeArgs, presetConfig, envOverrides, command);
@@ -297,7 +298,7 @@ async function main() {
           executeCodeCommand(codeArgs);
         } else {
           console.error(
-            "Service startup timeout, please manually run `ccr start` to start the service"
+            `Service startup timeout, please manually run \`${CLI_NAME} start\` to start the service`
           );
           process.exit(1);
         }
@@ -353,7 +354,7 @@ async function main() {
               Router: {},
             });
             console.log(
-              "Created minimal default configuration file at ~/.claude-code-router/config.json"
+              `Created minimal default configuration file at ${CONFIG_FILE}`
             );
             console.log(
               "Please edit this file with your actual configuration."
@@ -378,7 +379,7 @@ async function main() {
             if (!(await waitForService(15000))) {
               // Wait a bit longer for the first start
               console.error(
-                "Service startup still failing. Please manually run `ccr start` to start the service and check the logs."
+                `Service startup still failing. Please manually run \`${CLI_NAME} start\` to start the service and check the logs.`
               );
               process.exit(1);
             }
@@ -442,4 +443,7 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

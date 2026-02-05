@@ -21,7 +21,7 @@
     "serve:docs": "pnpm --filter claude-code-router-docs serve"
   },
   "bin": {
-    "ccr": "dist/cli.js"
+    "sec-ccr": "dist/cli.js"
   },
   "keywords": [
     "claude",

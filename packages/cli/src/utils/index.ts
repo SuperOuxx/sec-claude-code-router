@@ -4,9 +4,11 @@ import JSON5 from "json5";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import os from "node:os";
+import net from "node:net";
 import {
   CONFIG_FILE,
   HOME_DIR, PID_FILE,
+  LEGACY_HOME_DIR,
   PLUGINS_DIR,
   PRESETS_DIR,
   REFERENCE_COUNT_FILE,
@@ -45,6 +47,27 @@ const ensureDir = async (dir_path: string) => {
   } catch {
     await fs.mkdir(dir_path, { recursive: true });
   }
+};
+
+const isPortAvailable = (port: number, host = "0.0.0.0") =>
+  new Promise<boolean>((resolve) => {
+    const server = net.createServer();
+
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+
+    server.listen(port, host);
+    server.unref();
+  });
+
+const findAvailablePort = async (startPort: number) => {
+  for (let port = startPort; port < startPort + 100; port++) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await isPortAvailable(port)) return port;
+  }
+  throw new Error(`No available port found starting from ${startPort}`);
 };
 
 export const initDir = async () => {
@@ -92,8 +115,22 @@ export const readConfigFile = async () => {
     }
   } catch (readError: any) {
     if (readError.code === "ENOENT") {
-      // Config file doesn't exist, prompt user for initial setup
       try {
+        // If this is a fresh sec-ccr install, migrate legacy ccr config once.
+        const legacyConfigPath = path.join(LEGACY_HOME_DIR, "config.json");
+        const hasLegacyConfig = await fs
+          .access(legacyConfigPath)
+          .then(() => true)
+          .catch(() => false);
+
+        if (hasLegacyConfig) {
+          await initDir();
+          await fs.copyFile(legacyConfigPath, CONFIG_FILE);
+          console.log(`Migrated legacy config: ${legacyConfigPath} -> ${CONFIG_FILE}`);
+          const migrated = await fs.readFile(CONFIG_FILE, "utf-8");
+          return interpolateEnvVars(JSON5.parse(migrated));
+        }
+
         // Initialize directories
         await initDir();
 
@@ -105,14 +142,14 @@ export const readConfigFile = async () => {
           );
         }
         const config = {
-          PORT: 3456,
+          PORT: 3457,
           Providers: [],
           Router: {},
         }
         // Create a minimal default config file
         await writeConfigFile(config);
         console.log(
-            "Created minimal default configuration file at ~/.claude-code-router/config.json"
+            `Created minimal default configuration file at ${CONFIG_FILE}`
         );
         console.log(
             "Please edit this file with your actual configuration."
@@ -189,32 +226,65 @@ export const run = async (args: string[] = []) => {
     console.log('claude-code-router server is running');
     return;
   }
-  const server = await getServer();
-  const app = server.app;
-  // Save the PID of the background process
-  writeFileSync(PID_FILE, process.pid.toString());
 
-  app.post('/api/update/perform', async () => {
-    return await performUpdate();
-  })
+  let attempt = 0;
+  while (attempt < 3) {
+    const server = await getServer();
+    const app = server.app;
 
-  app.get('/api/update/check', async () => {
-    return await checkForUpdates(version);
-  })
+    // Save the PID of the background process
+    writeFileSync(PID_FILE, process.pid.toString());
 
-  app.post("/api/restart", async () => {
-    setTimeout(async () => {
-      spawn("ccr", ["restart"], {
-        detached: true,
-        stdio: "ignore",
-      }).unref();
-    }, 100);
+    app.post('/api/update/perform', async () => {
+      return await performUpdate();
+    })
 
-    return { success: true, message: "Service restart initiated" }
-  });
+    app.get('/api/update/check', async () => {
+      return await checkForUpdates(version);
+    })
 
-  // await server.start() to ensure it starts successfully and keep process alive
-  await server.start();
+    app.post("/api/restart", async () => {
+      setTimeout(async () => {
+        const cliPath = path.join(__dirname, "cli.js");
+        spawn(process.execPath, [cliPath, "restart"], {
+          detached: true,
+          stdio: "ignore",
+        }).unref();
+      }, 100);
+
+      return { success: true, message: "Service restart initiated" }
+    });
+
+    try {
+      // await server.start() to ensure it starts successfully and keep process alive
+      await server.start();
+      return;
+    } catch (error: any) {
+      cleanupPidFile();
+
+      if (error?.code !== "EADDRINUSE") throw error;
+
+      const config = await readConfigFile();
+      const currentPort = Number(config.PORT) || 3457;
+      const nextPort = await findAvailablePort(currentPort + 1);
+      const backupPath = await backupConfigFile();
+
+      await writeConfigFile({
+        ...config,
+        PORT: nextPort,
+      });
+
+      console.error(
+        `Port ${currentPort} is already in use. Updated ${CONFIG_FILE} PORT to ${nextPort}` +
+        (backupPath ? ` (backup: ${backupPath})` : "") +
+        ". Retrying..."
+      );
+
+      attempt++;
+    }
+  }
+
+  throw new Error("Failed to start service after retrying with a new port.");
 }
 
 export const restartService = async () => {
@@ -250,7 +320,20 @@ export const restartService = async () => {
   });
 
   startProcess.unref();
-  console.log("✅ Service started successfully in the background.");
+
+  const startTime = Date.now();
+  while (Date.now() - startTime < 30000) {
+    if (isServiceRunning()) {
+      console.log("Service started successfully in the background.");
+      return;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  throw new Error(
+    "Service startup timeout. Try running `sec-ccr start` to see the error output."
+  );
 };
 
 
@@ -266,8 +349,8 @@ export const getSettingsPath = async (content: string): Promise<string> => {
   const hash = createHash('sha256').update(content, 'utf-8').digest('hex');
 
   // Create claude-code-router directory in system temp folder
-  const tempDir = path.join(os.tmpdir(), 'claude-code-router');
-  const fileName = `ccr-settings-${hash}.json`;
+  const tempDir = path.join(os.tmpdir(), 'sec-claude-code-router');
+  const fileName = `sec-ccr-settings-${hash}.json`;
   const tempFilePath = path.join(tempDir, fileName);
 
   // Ensure the directory exists

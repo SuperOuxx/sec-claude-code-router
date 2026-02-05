@@ -1,6 +1,6 @@
 /**
  * Install preset from GitHub marketplace
- * ccr install {presetname}
+ * sec-ccr install {presetname}
  */
 
 import { installPresetFromMarket } from './preset/install-github';
@@ -21,12 +21,13 @@ const DIM = "\x1B[2m";
  */
 export async function handleInstallCommand(presetName: string): Promise<void> {
   try {
+    const cliName = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
     if (!presetName) {
       console.error(`\n${BOLDYELLOW}Error:${RESET} Preset name is required\n`);
-      console.error('Usage: ccr install <preset-name>\n');
+      console.error(`Usage: ${cliName} install <preset-name>\n`);
       console.error('Examples:');
-      console.error('  ccr install my-preset');
-      console.error('  ccr install awesome-preset\n');
+      console.error(`  ${cliName} install my-preset`);
+      console.error(`  ${cliName} install awesome-preset\n`);
       console.error(`${DIM}Note: Preset must exist in the official marketplace.${RESET}\n`);
       process.exit(1);
     }

@@ -3,7 +3,6 @@ import { readConfigFile, writeConfigFile, backupConfigFile } from "./utils";
 import { join } from "path";
 import fastifyStatic from "@fastify/static";
 import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, rmSync } from "fs";
-import { homedir } from "os";
 import {
   getPresetDir,
   readManifestFromDir,
@@ -128,7 +127,7 @@ export const createServer = async (config: any): Promise<any> => {
   // Get log file list endpoint
   app.get("/api/logs/files", async (req: any, reply: any) => {
     try {
-      const logDir = join(homedir(), ".claude-code-router", "logs");
+      const logDir = join(HOME_DIR, "logs");
       const logFiles: Array<{ name: string; path: string; size: number; lastModified: string }> = [];
 
       if (existsSync(logDir)) {
@@ -170,7 +169,7 @@ export const createServer = async (config: any): Promise<any> => {
         logFilePath = filePath;
       } else {
         // If file path is not specified, use default log file path
-        logFilePath = join(homedir(), ".claude-code-router", "logs", "app.log");
+        logFilePath = join(HOME_DIR, "logs", "app.log");
       }
 
       if (!existsSync(logFilePath)) {
@@ -198,7 +197,7 @@ export const createServer = async (config: any): Promise<any> => {
         logFilePath = filePath;
       } else {
         // If file path is not specified, use default log file path
-        logFilePath = join(homedir(), ".claude-code-router", "logs", "app.log");
+        logFilePath = join(HOME_DIR, "logs", "app.log");
       }
 
       if (existsSync(logFilePath)) {

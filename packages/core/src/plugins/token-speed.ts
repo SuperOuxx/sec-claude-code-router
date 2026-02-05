@@ -89,7 +89,7 @@ export const tokenSpeedPlugin: CCRPlugin = {
             type: 'temp-file',
             enabled: true,
             config: {
-              subdirectory: 'claude-code-router',
+              subdirectory: 'sec-claude-code-router',
               extension: 'json',
               includeTimestamp: true,
               prefix: 'session'

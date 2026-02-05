@@ -21,6 +21,7 @@ const RESET = "\x1B[0m";
 const GREEN = "\x1B[32m";
 const BOLDCYAN = "\x1B[1m\x1B[36m";
 const BOLDYELLOW = "\x1B[1m\x1B[33m";
+const CLI_NAME = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
 
 /**
  * Parse GitHub repository URL or name
@@ -105,8 +106,8 @@ export async function installPresetFromMarket(presetName: string): Promise<{ nam
   if (await isPresetInstalled(installedPresetName)) {
     throw new Error(
       `Preset '${installedPresetName}' is already installed.\n` +
-      `To delete and reinstall, use: ccr preset delete ${installedPresetName}\n` +
-      `To reconfigure without deleting, use: ccr preset install ${installedPresetName}`
+      `To delete and reinstall, use: ${CLI_NAME} preset delete ${installedPresetName}\n` +
+      `To reconfigure without deleting, use: ${CLI_NAME} preset install ${installedPresetName}`
     );
   }
 

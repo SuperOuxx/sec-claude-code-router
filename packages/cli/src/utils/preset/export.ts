@@ -13,6 +13,7 @@ const GREEN = "\x1B[32m";
 const BOLDGREEN = "\x1B[1m\x1B[32m";
 const YELLOW = "\x1B[33m";
 const BOLDCYAN = "\x1B[1m\x1B[36m";
+const CLI_NAME = process.env.SEC_CCR_CLI_NAME || "sec-ccr";
 
 /**
  * Export preset configuration (CLI version, with interaction)
@@ -95,7 +96,7 @@ export async function exportPresetCli(
     console.log(`\n${BOLDCYAN}To share this preset:${RESET}`);
     console.log(`  1. Share the directory: ${result.presetDir}`);
     console.log(`  2. Upload to GitHub Gist or your repository`);
-    console.log(`  3. Others can install with: ${GREEN}ccr preset install <directory>${RESET}\n`);
+    console.log(`  3. Others can install with: ${GREEN}${CLI_NAME} preset install <directory>${RESET}\n`);
 
   } catch (error: any) {
     console.error(`\n${YELLOW}Error exporting preset:${RESET} ${error.message}`);

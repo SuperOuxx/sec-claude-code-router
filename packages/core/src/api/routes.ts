@@ -13,6 +13,23 @@ import { ProviderService } from "@/services/provider";
 import { TransformerService } from "@/services/transformer";
 import { Transformer } from "@/types/transformer";
 
+function parseTokenParamRangeError(errorText: string): { param: string; min: number; max: number } | null {
+  const match = errorText.match(
+    /Range of (max_tokens|max_completion_tokens) should be \[(\d+),\s*(\d+)\]/i
+  );
+  if (!match) return null;
+
+  const min = Number.parseInt(match[2], 10);
+  const max = Number.parseInt(match[3], 10);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+  return { param: match[1].toLowerCase(), min, max };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
 // Extend FastifyInstance to include custom services
 declare module "fastify" {
   interface FastifyInstance {
@@ -350,7 +367,7 @@ async function sendRequestToProvider(
     }
   }
 
-  const response = await sendUnifiedRequest(
+  let response = await sendUnifiedRequest(
     url,
     requestBody,
     {
@@ -364,7 +381,50 @@ async function sendRequestToProvider(
 
   // Handle request errors
   if (!response.ok) {
-    const errorText = await response.text();
+    let errorText = await response.text();
+
+    const rangeError = parseTokenParamRangeError(errorText);
+    if (rangeError && requestBody && typeof requestBody === "object") {
+      const currentRaw = (requestBody as any)[rangeError.param];
+      const current = typeof currentRaw === "string" ? Number.parseInt(currentRaw, 10) : currentRaw;
+      if (Number.isFinite(current)) {
+        const clamped = clampNumber(current, rangeError.min, rangeError.max);
+        if (clamped !== current) {
+          const retryBody = { ...requestBody, [rangeError.param]: clamped };
+          fastify.log.warn(
+            {
+              provider: provider.name,
+              model: requestBody.model,
+              param: rangeError.param,
+              from: current,
+              to: clamped,
+            },
+            "Provider rejected token param range; retrying with clamped value"
+          );
+
+          const retryResponse = await sendUnifiedRequest(
+            url,
+            retryBody,
+            {
+              httpsProxy: fastify.configService.getHttpsProxy(),
+              ...config,
+              headers: JSON.parse(JSON.stringify(requestHeaders)),
+            },
+            context,
+            fastify.log
+          );
+
+          if (retryResponse.ok) {
+            return retryResponse;
+          }
+
+          const retryErrorText = await retryResponse.text();
+          errorText = `${errorText}\n\n[ccr retry after clamping ${rangeError.param}=${clamped}] ${retryResponse.status}: ${retryErrorText}`;
+          response = retryResponse as any;
+        }
+      }
+    }
+
     fastify.log.error(
       `[provider_response_error] Error from provider(${provider.name},${requestBody.model}: ${response.status}): ${errorText}`,
     );

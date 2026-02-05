@@ -123,7 +123,7 @@ export async function getServiceInfo() {
     const pid = getServicePid();
     const running = await isServiceRunning();
     const config = await readConfigFile();
-    const port = config.PORT || 3456;
+    const port = config.PORT || 3457;
 
     return {
         running,

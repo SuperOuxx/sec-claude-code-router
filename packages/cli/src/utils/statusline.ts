@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { execSync } from "child_process";
 import { tmpdir } from "node:os";
-import { CONFIG_FILE, HOME_DIR, readPresetFile, getPresetDir, loadConfigFromManifest } from "@CCR/shared";
+import { CONFIG_FILE, DEFAULT_HOME_DIRNAME, HOME_DIR, readPresetFile, getPresetDir, loadConfigFromManifest } from "@CCR/shared";
 import JSON5 from "json5";
 
 export interface StatusLineModuleConfig {
@@ -432,7 +432,7 @@ async function getTokenSpeedStats(sessionId: string): Promise<{
 } | null> {
     try {
         // Use system temp directory
-        const tempDir = path.join(tmpdir(), 'claude-code-router');
+        const tempDir = path.join(tmpdir(), 'sec-claude-code-router');
 
         // Check if temp directory exists
         try {
@@ -677,7 +677,7 @@ export async function parseStatusLineData(input: StatusLineInput, presetName?: s
         if (!model) {
             try {
                 // Get project configuration file path
-                const projectConfigPath = path.join(workDir, ".claude-code-router", "config.json");
+                const projectConfigPath = path.join(workDir, DEFAULT_HOME_DIRNAME, "config.json");
                 let configPath = projectConfigPath;
 
                 // Check if project configuration file exists, if not use user home directory configuration file

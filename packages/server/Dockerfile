@@ -67,7 +67,7 @@ COPY packages/ui/dist/. ./packages/server/dist/
 COPY packages/server/ecosystem.config.cjs /app/
 
 # 创建日志目录
-RUN mkdir -p /root/.claude-code-router/logs
+RUN mkdir -p /root/.sec-claude-code-router/logs
 
 # 暴露端口
 EXPOSE 3456
