@@ -28,7 +28,7 @@ $json = '
         }
     ],
     "tool_choice": { "type": "tool", "name": "verify_user_info" },
-    "stream": false,
+    "stream": true,
     "max_tokens": 1000
 }
 '

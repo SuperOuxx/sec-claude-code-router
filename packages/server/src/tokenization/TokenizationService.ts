@@ -32,17 +32,12 @@ export class TokenizationService {
     }
 
     /**
-     * Tokenize text: replace sensitive data with tokens
-     * @param text Text to tokenize
-     * @param context Optional context
-     * @returns Tokenized text
-     */
-    /**
-     * Tokenize text: replace sensitive data with tokens
-     * @param text Text to tokenize
-     * @param context Optional context
-     * @param activeTokens Optional set to collect generated tokens
-     * @returns Tokenized text
+     * 令牌化文本：使用无语义的令牌替换文本中的敏感数据。
+     * 
+     * @param text 待处理的原始文本
+     * @param context 令牌化的上下文信息（如会话 ID）
+     * @param activeTokens 用于收集本次请求生成的活跃令牌集合，便于后续还原
+     * @returns 替换后的脱敏文本
      */
     async tokenize(text: string, context?: TokenizationContext, activeTokens?: Set<string>): Promise<string> {
         this.logger?.debug?.({ activeTokensPresent: !!activeTokens, textLen: text.length }, 'tokenize called');
@@ -53,23 +48,28 @@ export class TokenizationService {
         let offset = 0;
 
         for (const finding of findings) {
+            // 为识别出的敏感数据生成唯一的随机令牌（如 ID_A1B2C3D4）
             const token = this.tokenGenerator.generate(finding.rule.tokenPrefix);
 
-            // Collect active token if set provided
+            // 记录活跃令牌：如果提供了集合，则将新生成的令牌加入。
+            // 原因是 LLM 在后续响应中可能会返回这些令牌，我们需要知道哪些令牌是当前会话有效的，以便进行模糊匹配还原。
             if (activeTokens) {
                 activeTokens.add(token);
                 this.logger?.debug?.({ token, count: activeTokens.size }, 'Added active token');
             }
 
-            // Store mapping with TTL
+            // 存储映射：将令牌与真实值的对应关系存入存储层，并设置过期时间（TTL）。
+            // 原因是去令牌化阶段需要根据令牌检索真实值，设置 TTL 是为了防止内存泄漏并确保敏感数据不会永久驻留。
             await this.storage.set(token, finding.match, TOKEN_TTL_MS);
 
-            // Replace in text, accounting for previous replacements' offset
+            // 执行文本替换：根据最初检测到的位置进行切片替换。
+            // 原因是使用 slice 结合偏移量（offset）可以精确处理同一次处理中的多次替换，
+            // 避免因令牌长度与原数据长度不一导致的索引偏移问题。
             const startPos = finding.index + offset;
             const endPos = startPos + finding.match.length;
             result = result.slice(0, startPos) + token + result.slice(endPos);
 
-            // Update offset for next replacement
+            // 更新偏移量，确保后续替换的位置依然正确
             offset += token.length - finding.match.length;
 
             this.logger?.debug?.(`Tokenized: ${finding.rule.name} -> ${token}`);
@@ -80,27 +80,29 @@ export class TokenizationService {
     }
 
     /**
-     * Detokenize text: replace tokens with real values
-     * @param text Text to detokenize
-     * @param activeTokens Optional list of known active tokens for fuzzy matching
-     * @returns Detokenized text
+     * 去令牌化文本：将文本中的令牌还原为原始的真实数据。
+     * 
+     * @param text 包含令牌的文本（通常来自模型响应）
+     * @param activeTokens 当前会话已知的活跃令牌列表，用于提升还原成功率
+     * @returns 还原后的真实文本
      */
     async detokenize(text: string, activeTokens?: Set<string> | string[]): Promise<string> {
-        // 1. Standard approach: Exact regex match
-        // Extract all tokens from text (format: PREFIX_HEXHEX), allowing for concatenated tokens
+        // 第一阶段：标准还原（精确正则匹配）
+        // 目的是快速提取文本中完全符合格式（如 PREFIX_HEXHEX）的字符串。
         const tokenPattern = /[A-Z_]+[A-F0-9]{8}/g;
         const matches = Array.from(text.matchAll(tokenPattern));
         let tokens = matches.map(m => m[0]);
 
-        // 2. Fallback approach: Context-aware fuzzy matching
-        // If we know specific tokens were active in this context, look for them fuzzily
+        // 第二阶段：回退机制（上下文感知的模糊匹配准备）
+        // 如果我们知道哪些令牌在当前请求中产生（活跃令牌），即使它们没在第一阶段被正则发现，也应放入待还原列表。
+        // 原因是 LLM 有时会微调令牌格式（如加空格），导致标准正则失效。
         if (activeTokens && (activeTokens instanceof Set ? activeTokens.size > 0 : activeTokens.length > 0)) {
             const activeList = Array.from(activeTokens);
 
-            // Add known tokens to the list to ensure we try to restore them
+            // 将活跃令牌加入列表，确保我们尝试恢复它们
             tokens = [...tokens, ...activeList];
 
-            // Deduplicate
+            // 去重处理
             tokens = [...new Set(tokens)];
         } else {
             const uniqueTokens = [...new Set(tokens)];
@@ -108,24 +110,24 @@ export class TokenizationService {
             tokens = uniqueTokens;
         }
 
-        // Batch fetch real values
+        // 批量获取真实值，减少存储层 IO 压力
         const mappings = await this.storage.getMany(tokens);
 
         if (mappings.size === 0) {
-            // this.logger?.warn?.('No token mappings found for detokenization');
             return text;
         }
 
-        // Replace tokens with real values
+        // 初始化结果
         let result = text;
 
-        // Priority 1: Exact matches (Fast & Safe)
+        // 优先级 1：精确匹配还原（高性能且安全）
+        // 首先处理文本中完全一致的令牌，因为这是最明确且最常见的场景。
         for (const [token, realValue] of mappings) {
-            // Use global replace for exact token matches
             result = result.replaceAll(token, realValue);
         }
 
-        // Priority 2: Fuzzy matches for active tokens (Slower, only for remaining tokens)
+        // 优先级 2：针对活跃令牌的模糊匹配（较慢，但更强大）
+        // 如果精确匹配后仍有残留，则利用活跃令牌的副本尝试查找毁坏的令牌。
         if (activeTokens) {
             const activeList = Array.from(activeTokens);
 
@@ -134,9 +136,8 @@ export class TokenizationService {
 
                 const realValue = mappings.get(token)!;
 
-                // If the text still contains parts of the token but wasn't replaced by exact match
-                // Construct fuzzy regex: Allow spaces, case-insensitive, punctuation
-                // e.g. ID_A1B2 -> /I\s*D\s*_\s*A\s*1\s*B\s*2/gi
+                // 如果文本中仍包含令牌的变体（如模型在字母间加了空格）
+                // 构造模糊正则（如 I D _ A 1），原因是模型理解令牌为“代号”时，有时会为了排版改变其形式。
                 const fuzzyPattern = this.getCachedRegex(token).fuzzy;
 
                 if (fuzzyPattern.test(result)) {
@@ -148,7 +149,8 @@ export class TokenizationService {
                     }
                 }
 
-                // Suffix Match (Handle missing prefix like ID_ removed by LLM)
+                // 后缀匹配：处理模型丢失前缀的情况（如 ID_A1B2C3D4 被模型简化为 A1B2C3D4）
+                // 原因是 8 位随机 Hex 具有极高的唯一性，只要配合边界检查，单独还原 Hex 后缀也是安全的。
                 if (token.length > MIN_TOKEN_LENGTH_FOR_SUFFIX_MATCH) {
                     const suffixPattern = this.getCachedRegex(token).suffix;
                     if (suffixPattern.test(result)) {
@@ -162,8 +164,6 @@ export class TokenizationService {
             }
         }
 
-        const restoredCount = mappings.size; // This is approximation
-        // this.logger?.info?.(`Detokenized approx ${restoredCount} tokens`);
         return result;
     }
 

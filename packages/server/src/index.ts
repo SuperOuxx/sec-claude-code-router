@@ -517,7 +517,7 @@ async function getServer(options: RunOptions = {}) {
             .pipeThrough(new SSEParserTransform());
 
           return rewriteStream(eventStream, async (data: any) => {
-            // Detokenize event data with fuzzy matching support using active tokens
+            // 事件数据去令牌化 Detokenize event data with fuzzy matching support using active tokens
             if (data.data) {
               data.data = await tokenizationService!.detokenizeResponse(data.data, (req as any).activeTokens);
             }
