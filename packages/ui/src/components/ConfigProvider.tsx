@@ -61,11 +61,11 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
         return;
       }
       setHasFetched(true);
-      
+
       try {
         // Try to fetch config regardless of API key presence
         const data = await api.getConfig();
-        
+
         // Validate the received data to ensure it has the expected structure
         const validConfig = {
           LOG: typeof data.LOG === 'boolean' ? data.LOG : false,
@@ -83,7 +83,7 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
             currentStyle: typeof data.StatusLine.currentStyle === 'string' ? data.StatusLine.currentStyle : 'default',
             default: data.StatusLine.default && typeof data.StatusLine.default === 'object' && Array.isArray(data.StatusLine.default.modules) ? data.StatusLine.default : { modules: [] },
             powerline: data.StatusLine.powerline && typeof data.StatusLine.powerline === 'object' && Array.isArray(data.StatusLine.powerline.modules) ? data.StatusLine.powerline : { modules: [] }
-          } : { 
+          } : {
             enabled: false,
             currentStyle: 'default',
             default: { modules: [] },
@@ -106,9 +106,16 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
             webSearch: '',
             image: ''
           },
-          CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : ''
+          CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
+          enableTokenization: typeof data.enableTokenization === 'boolean' ? data.enableTokenization : false,
+          tokenization: data.tokenization && typeof data.tokenization === 'object' ? {
+            ttl: typeof data.tokenization.ttl === 'number' ? data.tokenization.ttl : 3600000,
+            maxTokens: typeof data.tokenization.maxTokens === 'number' ? data.tokenization.maxTokens : undefined,
+            customRules: Array.isArray(data.tokenization.customRules) ? data.tokenization.customRules : undefined,
+            disabledRules: Array.isArray(data.tokenization.disabledRules) ? data.tokenization.disabledRules : undefined
+          } : undefined
         };
-        
+
         setConfig(validConfig);
       } catch (err) {
         console.error('Failed to fetch config:', err);
@@ -137,7 +144,9 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
               webSearch: '',
               image: ''
             },
-            CUSTOM_ROUTER_PATH: ''
+            CUSTOM_ROUTER_PATH: '',
+            enableTokenization: false,
+            tokenization: undefined
           });
           setError(err as Error);
         }

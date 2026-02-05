@@ -227,6 +227,42 @@ export function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
               className="transition-all-ease focus:scale-[1.01]"
             />
           </div>
+          <div className="flex items-center space-x-2 border-t pt-4">
+            <Switch
+              id="enable-tokenization"
+              checked={config.enableTokenization ?? false}
+              onCheckedChange={(checked) => setConfig({ ...config, enableTokenization: checked })}
+            />
+            <Label
+              htmlFor="enable-tokenization"
+              className="transition-all-ease hover:scale-[1.02] cursor-pointer"
+            >
+              {t("toplevel.enable_tokenization")}
+            </Label>
+          </div>
+          <div className="space-y-2">
+            <Label
+              htmlFor="tokenization-ttl"
+              className="transition-all-ease hover:scale-[1.01] cursor-pointer"
+            >
+              {t("toplevel.tokenization_ttl")}
+            </Label>
+            <Input
+              id="tokenization-ttl"
+              type="number"
+              value={config.tokenization?.ttl || ""}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  tokenization: {
+                    ...(config.tokenization || {}),
+                    ttl: parseInt(e.target.value, 10),
+                  },
+                })
+              }
+              className="transition-all-ease focus:scale-[1.01]"
+            />
+          </div>
         </div>
         <DialogFooter className="p-4 pt-0">
           <Button
@@ -243,6 +279,6 @@ export function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
         onOpenChange={setIsStatusLineConfigOpen}
         data-testid="statusline-config-dialog"
       />
-    </Dialog>
+    </Dialog >
   );
 }

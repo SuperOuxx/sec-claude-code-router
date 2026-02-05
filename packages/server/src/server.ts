@@ -2,7 +2,7 @@ import Server, { calculateTokenCount, TokenizerService } from "@musistudio/llms"
 import { readConfigFile, writeConfigFile, backupConfigFile } from "./utils";
 import { join } from "path";
 import fastifyStatic from "@fastify/static";
-import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, rmSync } from "fs";
+import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, rmSync } from "fs";
 import {
   getPresetDir,
   readManifestFromDir,
@@ -11,10 +11,8 @@ import {
   isPresetInstalled,
   extractPreset,
   HOME_DIR,
-  extractMetadata,
   loadConfigFromManifest,
   downloadPresetToTemp,
-  getTempDir,
   findMarketPresetByName,
   getMarketPresets,
   type PresetFile,
@@ -23,6 +21,7 @@ import {
 } from "@CCR/shared";
 import fastifyMultipart from "@fastify/multipart";
 import AdmZip from "adm-zip";
+import { unlinkSync } from "node:fs";
 
 export const createServer = async (config: any): Promise<any> => {
   const server = new Server(config);
@@ -35,7 +34,7 @@ export const createServer = async (config: any): Promise<any> => {
   });
 
   app.post("/v1/messages/count_tokens", async (req: any, reply: any) => {
-    const {messages, tools, system, model} = req.body;
+    const { messages, tools, system, model } = req.body;
     const tokenizerService = (app as any)._server!.tokenizerService as TokenizerService;
 
     // If model is specified in "providerName,modelName" format, use the configured tokenizer
@@ -108,13 +107,43 @@ export const createServer = async (config: any): Promise<any> => {
       console.log(`Backed up existing configuration file to ${backupPath}`);
     }
 
-    await writeConfigFile(newConfig);
+    // Merge new config with current config to prevent data loss from old UI versions
+    const currentConfig = await readConfigFile();
+    const mergedConfig = {
+      ...currentConfig,
+      ...newConfig,
+      // Deep merge nested objects we care about
+      tokenization: {
+        ...(currentConfig.tokenization || {}),
+        ...(newConfig.tokenization || {})
+      },
+      StatusLine: {
+        ...(currentConfig.StatusLine || {}),
+        ...(newConfig.StatusLine || {})
+      },
+      Router: {
+        ...(currentConfig.Router || {}),
+        ...(newConfig.Router || {})
+      }
+    };
+
+    await writeConfigFile(mergedConfig);
     return { success: true, message: "Config saved successfully" };
   });
 
+  // Get static file root
+  let staticRoot = join(__dirname, "..", "dist");
+  if (!existsSync(join(staticRoot, "index.html"))) {
+    // Try current directory (for CLI bundle case where UI is in the same dist)
+    const currentDirDist = __dirname;
+    if (existsSync(join(currentDirDist, "index.html"))) {
+      staticRoot = currentDirDist;
+    }
+  }
+
   // Register static file serving with caching
   app.register(fastifyStatic, {
-    root: join(__dirname, "..", "dist"),
+    root: staticRoot,
     prefix: "/ui/",
     maxAge: "1h",
   });

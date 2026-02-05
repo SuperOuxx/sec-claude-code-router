@@ -53,7 +53,9 @@
     "timeout": "API Timeout (ms)",
     "proxy_url": "Proxy URL",
     "custom_router_path": "Custom Router Script Path",
-    "custom_router_path_placeholder": "Enter absolute path to custom router script file"
+    "custom_router_path_placeholder": "Enter absolute path to custom router script file",
+    "enable_tokenization": "Enable Tokenization",
+    "tokenization_ttl": "Tokenization Cache TTL (ms)"
   },
   "transformers": {
     "title": "Custom Transformers",
@@ -106,7 +108,6 @@
     "name_required": "Name is required",
     "name_duplicate": "A provider with this name already exists",
     "search": "Search providers..."
-
   },
   "router": {
     "title": "Router",
@@ -263,7 +264,6 @@
     "install_dialog_title": "Install Preset",
     "install_dialog_description": "Install a preset from a GitHub repository",
     "from_url": "From GitHub",
-    "github_repository": "GitHub Repository",
     "preset_url": "Repository URL",
     "preset_url_placeholder": "https://github.com/owner/repo",
     "preset_name": "Preset Name (Optional)",

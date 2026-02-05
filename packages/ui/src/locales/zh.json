@@ -53,7 +53,9 @@
     "timeout": "API 超时时间 (毫秒)",
     "proxy_url": "代理地址",
     "custom_router_path": "自定义路由脚本路径",
-    "custom_router_path_placeholder": "输入自定义路由脚本文件的绝对路径"
+    "custom_router_path_placeholder": "输入自定义路由脚本文件的绝对路径",
+    "enable_tokenization": "启用令牌化 (Tokenization)",
+    "tokenization_ttl": "令牌缓存过期时间 (毫秒)"
   },
   "transformers": {
     "title": "自定义转换器",
@@ -106,7 +108,6 @@
     "name_required": "名称为必填项",
     "name_duplicate": "已存在同名供应商",
     "search": "搜索供应商..."
-
   },
   "router": {
     "title": "路由",
